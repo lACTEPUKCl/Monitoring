@@ -9,12 +9,20 @@ const serverIds = [
   process.env.SERVERID2,
   process.env.SERVERID3,
   process.env.SERVERID4,
+  process.env.SERVERID5,
+  process.env.SERVERID6,
+  process.env.SERVERID7,
+  process.env.SERVERID8,
 ];
 const tokens = [
   process.env.DISCORD_TOKEN1,
   process.env.DISCORD_TOKEN2,
   process.env.DISCORD_TOKEN3,
   process.env.DISCORD_TOKEN4,
+  process.env.DISCORD_TOKEN5,
+  process.env.DISCORD_TOKEN6,
+  process.env.DISCORD_TOKEN7,
+  process.env.DISCORD_TOKEN8,
 ];
 const clients = [];
 
