@@ -4,47 +4,58 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const serverIds = [
-  process.env.SERVERID1,
-  process.env.SERVERID2,
-  process.env.SERVERID3,
-  process.env.SERVERID4,
-  process.env.SERVERID5,
-  process.env.SERVERID6,
-  process.env.SERVERID7,
-  process.env.SERVERID8,
-];
-const tokens = [
-  process.env.DISCORD_TOKEN1,
-  process.env.DISCORD_TOKEN2,
-  process.env.DISCORD_TOKEN3,
-  process.env.DISCORD_TOKEN4,
-  process.env.DISCORD_TOKEN5,
-  process.env.DISCORD_TOKEN6,
-  process.env.DISCORD_TOKEN7,
-  process.env.DISCORD_TOKEN8,
-];
+const serverCount = parseInt(process.env.SERVER_COUNT, 10);
+if (isNaN(serverCount) || serverCount <= 0) {
+  console.error("Некорректное значение SERVER_COUNT в .env файле.");
+  process.exit(1);
+}
+
+const servers = [];
+const tokens = [];
 const clients = [];
 
-for (let i = 0; i < serverIds.length; i++) {
-  const client = new Client({
-    intents: [GatewayIntentBits.Guilds],
-  });
-  clients.push(client);
+for (let i = 1; i <= serverCount; i++) {
+  const serverId = process.env[`SERVER_ID_${i}`];
+  const token = process.env[`DISCORD_TOKEN_${i}`];
+  if (!serverId || !token) {
+    console.error(
+      `SERVER_ID_${i} или DISCORD_TOKEN_${i} не найдены в .env файле.`
+    );
+    process.exit(1);
+  }
+  servers.push(serverId);
+  tokens.push(token);
+}
 
-  const token = tokens[i];
-  const serverId = serverIds[i];
+const getServerName = async (serverId) => {
+  try {
+    const response = await axios.get(
+      `https://api.battlemetrics.com/servers/${serverId}`
+    );
+    return response.data.data.attributes.name;
+  } catch (error) {
+    console.error(`Ошибка получения названия сервера ${serverId}:`, error);
+    return `Сервер ${serverId}`;
+  }
+};
+
+const initClient = async (token, serverId, maxPlayers = 100) => {
+  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  const serverName = await getServerName(serverId);
 
   client.on("ready", () => {
-    console.log(`Вошли как ${client.user.tag} на сервере ${serverId}!`);
-    const maxPlayers = "100";
+    console.log(`Вошли как ${client.user.tag} на сервере ${serverName}!`);
     setInterval(() => updateActivity(client, serverId, maxPlayers), 30000);
   });
 
-  client.login(token);
-}
+  client.login(token).catch((error) => {
+    console.error(`Ошибка входа для сервера ${serverName}:`, error);
+  });
 
-async function updateActivity(client, serverId, maxPlayers) {
+  return client;
+};
+
+const updateActivity = async (client, serverId, maxPlayers) => {
   try {
     const response = await axios.get(
       `https://api.battlemetrics.com/servers/${serverId}`
@@ -55,5 +66,16 @@ async function updateActivity(client, serverId, maxPlayers) {
     const queue = queueTemp ? `+(${queueTemp})` : "";
     const activityString = `${players}/${maxPlayers}${queue} ${map}`;
     client.user.setPresence({ activities: [{ name: activityString }] });
-  } catch (e) {}
+  } catch (error) {
+    console.error(
+      `Ошибка обновления активности для сервера ${serverId}:`,
+      error
+    );
+  }
+};
+
+// Инициализация клиентов для каждого сервера
+for (let i = 0; i < serverCount; i++) {
+  console.log(`Инициализация клиента для сервера ${servers[i]}...`);
+  initClient(tokens[i], servers[i]).then((client) => clients.push(client));
 }
