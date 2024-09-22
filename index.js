@@ -62,6 +62,11 @@ const updateActivity = async (client, serverId, maxPlayers) => {
     );
     const players = response.data.data.attributes.players;
     const map = response.data.data.attributes.details.map;
+
+    if (!map) {
+      map = response.data.data.attributes.details.reforger.scenarioName;
+    }
+    
     const queueTemp = response.data.data.attributes.details.squad_publicQueue;
     const queue = queueTemp ? `+(${queueTemp})` : "";
     const activityString = `${players}/${maxPlayers}${queue} ${map}`;
