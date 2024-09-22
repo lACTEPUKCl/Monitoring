@@ -61,7 +61,7 @@ const updateActivity = async (client, serverId, maxPlayers) => {
       `https://api.battlemetrics.com/servers/${serverId}`
     );
     const players = response.data.data.attributes.players;
-    const map = response.data.data.attributes.details.map;
+    let map = response.data.data.attributes.details.map;
 
     if (!map) {
       map = response.data.data.attributes.details.reforger.scenarioName;
