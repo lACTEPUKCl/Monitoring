@@ -45,7 +45,7 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
 
   client.on("ready", () => {
     console.log(`Вошли как ${client.user.tag} на сервере ${serverName}!`);
-    setInterval(() => updateActivity(client, serverId, maxPlayers), 30000);
+    setInterval(() => updateCustomStatus(client, serverId, maxPlayers), 30000);
   });
 
   client.login(token).catch((error) => {
@@ -55,7 +55,7 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
   return client;
 };
 
-const updateActivity = async (client, serverId, maxPlayers) => {
+const updateCustomStatus = async (client, serverId, maxPlayers) => {
   try {
     const response = await axios.get(
       `https://api.battlemetrics.com/servers/${serverId}`
@@ -69,17 +69,24 @@ const updateActivity = async (client, serverId, maxPlayers) => {
     
     const queueTemp = response.data.data.attributes.details.squad_publicQueue;
     const queue = queueTemp ? `+(${queueTemp})` : "";
-    const activityString = `${players}/${maxPlayers}${queue} ${map}`;
-    client.user.setPresence({ activities: [{ name: activityString }] });
+    const customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
+
+    client.user.setPresence({
+      activities: [
+        {
+          name: customStatusString,
+          type: 4,
+        },
+      ],
+    });
   } catch (error) {
     console.error(
-      `Ошибка обновления активности для сервера ${serverId}:`,
+      `Ошибка обновления пользовательского статуса для сервера ${serverId}:`,
       error
     );
   }
 };
 
-// Инициализация клиентов для каждого сервера
 for (let i = 0; i < serverCount; i++) {
   console.log(`Инициализация клиента для сервера ${servers[i]}...`);
   initClient(tokens[i], servers[i]).then((client) => clients.push(client));
