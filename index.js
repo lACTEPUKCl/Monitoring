@@ -79,10 +79,6 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
         },
       ],
     });
-
-    console.log(
-      `Пользовательский статус обновлен для сервера ${serverId}: ${customStatusString}`
-    );
   } catch (error) {
     console.error(
       `Ошибка обновления пользовательского статуса для сервера ${serverId}:`,
