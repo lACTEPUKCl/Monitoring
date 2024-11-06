@@ -91,7 +91,6 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
   }
 };
 
-// Инициализация клиентов для каждого сервера
 for (let i = 0; i < serverCount; i++) {
   console.log(`Инициализация клиента для сервера ${servers[i]}...`);
   initClient(tokens[i], servers[i]).then((client) => clients.push(client));
