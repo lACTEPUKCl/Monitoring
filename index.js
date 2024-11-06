@@ -66,7 +66,7 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
     if (!map) {
       map = response.data.data.attributes.details.reforger.scenarioName;
     }
-
+    
     const queueTemp = response.data.data.attributes.details.squad_publicQueue;
     const queue = queueTemp ? `+(${queueTemp})` : "";
     const customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
