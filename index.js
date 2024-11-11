@@ -60,16 +60,25 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
     const response = await axios.get(
       `https://api.battlemetrics.com/servers/${serverId}`
     );
-    const players = response.data.data.attributes.players;
-    let map = response.data.data.attributes.details.map;
 
-    if (!map) {
-      map = response.data.data.attributes.details.reforger.scenarioName;
+    const serverStatus = response.data.data.attributes.status;
+    let customStatusString;
+    console.log(serverStatus);
+
+    if (serverStatus === "offline") {
+      customStatusString = `offline`;
+    } else {
+      const players = response.data.data.attributes.players;
+      let map = response.data.data.attributes.details.map;
+
+      if (!map) {
+        map = response.data.data.attributes.details.reforger.scenarioName;
+      }
+
+      const queueTemp = response.data.data.attributes.details.squad_publicQueue;
+      const queue = queueTemp ? `+(${queueTemp})` : "";
+      customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
     }
-
-    const queueTemp = response.data.data.attributes.details.squad_publicQueue;
-    const queue = queueTemp ? `+(${queueTemp})` : "";
-    const customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
 
     client.user.setPresence({
       activities: [
