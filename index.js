@@ -65,6 +65,20 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
     setInterval(() => updateCustomStatus(client, serverId, maxPlayers), 30000);
   });
 
+  client.on("error", (err) => {
+    console.error(
+      `WS error для сервера ${serverName} (${serverId}):`,
+      err.message
+    );
+  });
+
+  client.on("shardError", (err) => {
+    console.error(
+      `Shard error для сервера ${serverName} (${serverId}):`,
+      err.message
+    );
+  });
+
   client.login(token).catch((error) => {
     console.error(`Ошибка входа для сервера ${serverName}:`, error);
   });
@@ -110,6 +124,11 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
 
 // Инициализация клиентов для каждого сервера
 for (let i = 0; i < serverCount; i++) {
-  console.log(`Инициализация клиента для сервера ${servers[i]}...`);
-  initClient(tokens[i], servers[i]).then((client) => clients.push(client));
+  const serverId = servers[i];
+  const token = tokens[i];
+
+  setTimeout(() => {
+    console.log(`Инициализация клиента для сервера ${serverId}...`);
+    initClient(token, serverId).then((client) => clients.push(client));
+  }, i * 5000);
 }
