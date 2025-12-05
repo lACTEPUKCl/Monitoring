@@ -6,6 +6,14 @@ import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 dotenv.config();
 
+process.on("uncaughtException", (err) => {
+  console.error("[GLOBAL] Uncaught exception:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[GLOBAL] Unhandled rejection:", reason);
+});
+
 const proxyUrl = process.env.DISCORD_PROXY_URL;
 let wsProxyAgent = null;
 
@@ -17,7 +25,6 @@ if (proxyUrl) {
 
   wsProxyAgent = new HttpsProxyAgent(proxyUrl);
 }
-
 const serverCount = parseInt(process.env.SERVER_COUNT, 10);
 if (isNaN(serverCount) || serverCount <= 0) {
   console.error("Некорректное значение SERVER_COUNT в .env файле.");
@@ -58,6 +65,7 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
     intents: [GatewayIntentBits.Guilds],
     ...(wsProxyAgent ? { ws: { agent: wsProxyAgent } } : {}),
   });
+
   const serverName = await getServerName(serverId);
 
   client.on("ready", () => {
@@ -67,15 +75,15 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
 
   client.on("error", (err) => {
     console.error(
-      `WS error для сервера ${serverName} (${serverId}):`,
-      err.message
+      `[CLIENT ERROR] ${serverName} (${serverId}):`,
+      err && err.message ? err.message : err
     );
   });
 
   client.on("shardError", (err) => {
     console.error(
-      `Shard error для сервера ${serverName} (${serverId}):`,
-      err.message
+      `[SHARD ERROR] ${serverName} (${serverId}):`,
+      err && err.message ? err.message : err
     );
   });
 
@@ -91,25 +99,16 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
     const response = await axios.get(
       `https://api.battlemetrics.com/servers/${serverId}`
     );
+    const players = response.data.data.attributes.players;
+    let map = response.data.data.attributes.details.map;
 
-    const serverStatus = response.data.data.attributes.status;
-    let customStatusString;
-    console.log(serverStatus);
-
-    if (serverStatus === "offline") {
-      customStatusString = `offline`;
-    } else {
-      const players = response.data.data.attributes.players;
-      let map = response.data.data.attributes.details.map;
-
-      if (!map) {
-        map = response.data.data.attributes.details.reforger.scenarioName;
-      }
-
-      const queueTemp = response.data.data.attributes.details.squad_publicQueue;
-      const queue = queueTemp ? `+(${queueTemp})` : "";
-      customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
+    if (!map) {
+      map = response.data.data.attributes.details?.reforger?.scenarioName;
     }
+
+    const queueTemp = response.data.data.attributes.details.squad_publicQueue;
+    const queue = queueTemp ? `+(${queueTemp})` : "";
+    const customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
 
     client.user.setPresence({
       activities: [
@@ -119,6 +118,10 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
         },
       ],
     });
+
+    console.log(
+      `Пользовательский статус обновлен для сервера ${serverId}: ${customStatusString}`
+    );
   } catch (error) {
     console.error(
       `Ошибка обновления пользовательского статуса для сервера ${serverId}:`,
@@ -127,6 +130,8 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
   }
 };
 
+const START_DELAY_MS = 5000;
+
 for (let i = 0; i < serverCount; i++) {
   const serverId = servers[i];
   const token = tokens[i];
@@ -134,5 +139,5 @@ for (let i = 0; i < serverCount; i++) {
   setTimeout(() => {
     console.log(`Инициализация клиента для сервера ${serverId}...`);
     initClient(token, serverId).then((client) => clients.push(client));
-  }, i * 5000);
+  }, i * START_DELAY_MS);
 }
