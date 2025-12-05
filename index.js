@@ -6,6 +6,17 @@ import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 dotenv.config();
 
+const STATUS_UPDATE_INTERVAL = parseInt(
+  process.env.STATUS_UPDATE_INTERVAL ?? "60000",
+  10
+);
+
+if (isNaN(STATUS_UPDATE_INTERVAL) || STATUS_UPDATE_INTERVAL <= 0) {
+  console.warn(
+    "[WARN] Некорректное значение STATUS_UPDATE_INTERVAL, используем 60000 мс"
+  );
+}
+
 process.on("uncaughtException", (err) => {
   console.error("[GLOBAL] Uncaught exception:", err);
 });
@@ -70,7 +81,16 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
 
   client.on("ready", () => {
     console.log(`Вошли как ${client.user.tag} на сервере ${serverName}!`);
-    setInterval(() => updateCustomStatus(client, serverId, maxPlayers), 30000);
+
+    const interval =
+      !isNaN(STATUS_UPDATE_INTERVAL) && STATUS_UPDATE_INTERVAL > 0
+        ? STATUS_UPDATE_INTERVAL
+        : 30000;
+
+    setInterval(
+      () => updateCustomStatus(client, serverId, maxPlayers),
+      interval
+    );
   });
 
   client.on("error", (err) => {
@@ -99,14 +119,36 @@ const updateCustomStatus = async (client, serverId, maxPlayers) => {
     const response = await axios.get(
       `https://api.battlemetrics.com/servers/${serverId}`
     );
-    const players = response.data.data.attributes.players;
-    let map = response.data.data.attributes.details.map;
 
-    if (!map) {
-      map = response.data.data.attributes.details?.reforger?.scenarioName;
+    const attrs = response.data.data.attributes;
+    const status = attrs.status;
+
+    if (status === "dead") {
+      const offlineText = "offline";
+
+      client.user.setPresence({
+        activities: [
+          {
+            name: offlineText,
+            type: 4,
+          },
+        ],
+      });
+
+      console.log(
+        `Сервер ${serverId} имеет статус 'dead' → выставляем Discord-статус: ${offlineText}`
+      );
+      return;
     }
 
-    const queueTemp = response.data.data.attributes.details.squad_publicQueue;
+    const players = attrs.players;
+    let map = attrs.details.map;
+
+    if (!map) {
+      map = attrs.details?.reforger?.scenarioName;
+    }
+
+    const queueTemp = attrs.details.squad_publicQueue;
     const queue = queueTemp ? `+(${queueTemp})` : "";
     const customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
 
