@@ -1,8 +1,22 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import axios from "axios";
 import dotenv from "dotenv";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 dotenv.config();
+
+const proxyUrl = process.env.DISCORD_PROXY_URL;
+let wsProxyAgent = null;
+
+if (proxyUrl) {
+  console.log("[BOT] Using Discord proxy:", proxyUrl);
+
+  const restProxy = new ProxyAgent(proxyUrl);
+  setGlobalDispatcher(restProxy);
+
+  wsProxyAgent = new HttpsProxyAgent(proxyUrl);
+}
 
 const serverCount = parseInt(process.env.SERVER_COUNT, 10);
 if (isNaN(serverCount) || serverCount <= 0) {
@@ -40,7 +54,10 @@ const getServerName = async (serverId) => {
 };
 
 const initClient = async (token, serverId, maxPlayers = 100) => {
-  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  const client = new Client({
+    intents: [GatewayIntentBits.Guilds],
+    ...(wsProxyAgent ? { ws: { agent: wsProxyAgent } } : {}),
+  });
   const serverName = await getServerName(serverId);
 
   client.on("ready", () => {
