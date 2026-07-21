@@ -36,6 +36,16 @@ if (proxyUrl) {
 
   wsProxyAgent = new HttpsProxyAgent(proxyUrl);
 }
+const battleMetricsToken = process.env.BATTLEMETRICS_TOKEN;
+if (!battleMetricsToken) {
+  console.warn(
+    "[WARN] BATTLEMETRICS_TOKEN не задан в .env — BattleMetrics теперь требует токен для всех запросов."
+  );
+}
+const bmHeaders = battleMetricsToken
+  ? { Authorization: `Bearer ${battleMetricsToken}` }
+  : {};
+
 const serverCount = parseInt(process.env.SERVER_COUNT, 10);
 if (isNaN(serverCount) || serverCount <= 0) {
   console.error("Некорректное значение SERVER_COUNT в .env файле.");
@@ -62,7 +72,8 @@ for (let i = 1; i <= serverCount; i++) {
 const getServerName = async (serverId) => {
   try {
     const response = await axios.get(
-      `https://api.battlemetrics.com/servers/${serverId}`
+      `https://api.battlemetrics.com/servers/${serverId}`,
+      { headers: bmHeaders }
     );
     return response.data.data.attributes.name;
   } catch (error) {
@@ -117,7 +128,8 @@ const initClient = async (token, serverId, maxPlayers = 100) => {
 const updateCustomStatus = async (client, serverId, maxPlayers) => {
   try {
     const response = await axios.get(
-      `https://api.battlemetrics.com/servers/${serverId}`
+      `https://api.battlemetrics.com/servers/${serverId}`,
+      { headers: bmHeaders }
     );
 
     const attrs = response.data.data.attributes;
