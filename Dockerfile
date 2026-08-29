@@ -1,8 +1,8 @@
-FROM node:18.18.2
+FROM node:22-alpine
 
 COPY . /app
 
 WORKDIR /app
-RUN npm install
+RUN npm ci --omit=dev
 CMD [ "node", "index.js" ]
 

@@ -1,197 +1,65 @@
 import { Client, GatewayIntentBits } from "discord.js";
-import axios from "axios";
 import dotenv from "dotenv";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { ProxyAgent, setGlobalDispatcher } from "undici";
+import { loadServerConfigs } from "./src/config.js";
+import { createRconMonitor } from "./src/rconMonitor.js";
+import { createBattleMetricsMonitor } from "./src/battleMetricsMonitor.js";
+import { formatPresence } from "./src/status.js";
 
 dotenv.config();
 
-const STATUS_UPDATE_INTERVAL = parseInt(
-  process.env.STATUS_UPDATE_INTERVAL ?? "60000",
-  10
-);
-
-if (isNaN(STATUS_UPDATE_INTERVAL) || STATUS_UPDATE_INTERVAL <= 0) {
-  console.warn(
-    "[WARN] Некорректное значение STATUS_UPDATE_INTERVAL, используем 60000 мс"
-  );
-}
-
-process.on("uncaughtException", (err) => {
-  console.error("[GLOBAL] Uncaught exception:", err);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("[GLOBAL] Unhandled rejection:", reason);
-});
-
-const proxyUrl = process.env.DISCORD_PROXY_URL;
+const intervalMs = Number(process.env.STATUS_UPDATE_INTERVAL) > 0
+  ? Number(process.env.STATUS_UPDATE_INTERVAL)
+  : 30_000;
+const configs = loadServerConfigs(process.env);
 let wsProxyAgent = null;
-
-if (proxyUrl) {
-  console.log("[BOT] Using Discord proxy:", proxyUrl);
-
-  const restProxy = new ProxyAgent(proxyUrl);
-  setGlobalDispatcher(restProxy);
-
-  wsProxyAgent = new HttpsProxyAgent(proxyUrl);
-}
-const battleMetricsToken = process.env.BATTLEMETRICS_TOKEN;
-if (!battleMetricsToken) {
-  console.warn(
-    "[WARN] BATTLEMETRICS_TOKEN не задан в .env — BattleMetrics теперь требует токен для всех запросов."
-  );
-}
-const bmHeaders = battleMetricsToken
-  ? { Authorization: `Bearer ${battleMetricsToken}` }
-  : {};
-
-const serverCount = parseInt(process.env.SERVER_COUNT, 10);
-if (isNaN(serverCount) || serverCount <= 0) {
-  console.error("Некорректное значение SERVER_COUNT в .env файле.");
-  process.exit(1);
+if (process.env.DISCORD_PROXY_URL) {
+  console.log("[monitoring] Discord proxy включён");
+  setGlobalDispatcher(new ProxyAgent(process.env.DISCORD_PROXY_URL));
+  wsProxyAgent = new HttpsProxyAgent(process.env.DISCORD_PROXY_URL);
 }
 
-const servers = [];
-const tokens = [];
-const clients = [];
-
-for (let i = 1; i <= serverCount; i++) {
-  const serverId = process.env[`SERVER_ID_${i}`];
-  const token = process.env[`DISCORD_TOKEN_${i}`];
-  if (!serverId || !token) {
-    console.error(
-      `SERVER_ID_${i} или DISCORD_TOKEN_${i} не найдены в .env файле.`
-    );
-    process.exit(1);
-  }
-  servers.push(serverId);
-  tokens.push(token);
-}
-
-const getServerName = async (serverId) => {
-  try {
-    const response = await axios.get(
-      `https://api.battlemetrics.com/servers/${serverId}`,
-      { headers: bmHeaders }
-    );
-    return response.data.data.attributes.name;
-  } catch (error) {
-    console.error(`Ошибка получения названия сервера ${serverId}:`, error);
-    return `Сервер ${serverId}`;
-  }
-};
-
-const initClient = async (token, serverId, maxPlayers = 100) => {
+const workers = configs.map((config, index) => {
+  const monitor = config.mode === "battlemetrics"
+    ? createBattleMetricsMonitor({ ...config, logger: console })
+    : createRconMonitor({ ...config, id: index + 1, logger: console });
   const client = new Client({
     intents: [GatewayIntentBits.Guilds],
     ...(wsProxyAgent ? { ws: { agent: wsProxyAgent } } : {}),
   });
+  let timer = null;
 
-  const serverName = await getServerName(serverId);
-
-  client.on("ready", () => {
-    console.log(`Вошли как ${client.user.tag} на сервере ${serverName}!`);
-
-    const interval =
-      !isNaN(STATUS_UPDATE_INTERVAL) && STATUS_UPDATE_INTERVAL > 0
-        ? STATUS_UPDATE_INTERVAL
-        : 30000;
-
-    setInterval(
-      () => updateCustomStatus(client, serverId, maxPlayers),
-      interval
-    );
-  });
-
-  client.on("error", (err) => {
-    console.error(
-      `[CLIENT ERROR] ${serverName} (${serverId}):`,
-      err && err.message ? err.message : err
-    );
-  });
-
-  client.on("shardError", (err) => {
-    console.error(
-      `[SHARD ERROR] ${serverName} (${serverId}):`,
-      err && err.message ? err.message : err
-    );
-  });
-
-  client.login(token).catch((error) => {
-    console.error(`Ошибка входа для сервера ${serverName}:`, error);
-  });
-
-  return client;
-};
-
-const updateCustomStatus = async (client, serverId, maxPlayers) => {
-  try {
-    const response = await axios.get(
-      `https://api.battlemetrics.com/servers/${serverId}`,
-      { headers: bmHeaders }
-    );
-
-    const attrs = response.data.data.attributes;
-    const status = attrs.status;
-
-    if (status === "dead") {
-      const offlineText = "offline";
-
-      client.user.setPresence({
-        activities: [
-          {
-            name: offlineText,
-            type: 4,
-          },
-        ],
-      });
-
-      console.log(
-        `Сервер ${serverId} имеет статус 'dead' → выставляем Discord-статус: ${offlineText}`
-      );
-      return;
-    }
-
-    const players = attrs.players;
-    let map = attrs.details.map;
-
-    if (!map) {
-      map = attrs.details?.reforger?.scenarioName;
-    }
-
-    const queueTemp = attrs.details.squad_publicQueue;
-    const queue = queueTemp ? `+(${queueTemp})` : "";
-    const customStatusString = `${players}/${maxPlayers}${queue} ${map}`;
-
-    client.user.setPresence({
-      activities: [
-        {
-          name: customStatusString,
-          type: 4,
-        },
-      ],
-    });
-
-    console.log(
-      `Пользовательский статус обновлен для сервера ${serverId}: ${customStatusString}`
-    );
-  } catch (error) {
-    console.error(
-      `Ошибка обновления пользовательского статуса для сервера ${serverId}:`,
-      error
-    );
+  async function update() {
+    const info = await monitor.getInfo();
+    const presence = formatPresence(info);
+    client.user?.setPresence({ activities: [{ name: presence.text, type: 4 }], status: presence.status });
+    console.log(`[monitoring] ${config.key}: ${presence.text}`);
   }
-};
 
-const START_DELAY_MS = 5000;
+  client.once("ready", () => {
+    console.log(`[monitoring] ${config.key}: Discord ${client.user.tag}`);
+    void update();
+    timer = setInterval(update, intervalMs);
+  });
+  client.on("error", (error) => console.error(`[monitoring] ${config.key}: Discord error`, error));
+  monitor.start();
+  void client.login(config.discordToken);
 
-for (let i = 0; i < serverCount; i++) {
-  const serverId = servers[i];
-  const token = tokens[i];
+  return {
+    stop: async () => {
+      if (timer) clearInterval(timer);
+      client.destroy();
+      await monitor.stop();
+    },
+  };
+});
 
-  setTimeout(() => {
-    console.log(`Инициализация клиента для сервера ${serverId}...`);
-    initClient(token, serverId).then((client) => clients.push(client));
-  }, i * START_DELAY_MS);
+async function shutdown() {
+  await Promise.allSettled(workers.map((worker) => worker.stop()));
+  process.exit(0);
 }
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);
+process.on("unhandledRejection", (error) => console.error("[monitoring] unhandled rejection", error));
+process.on("uncaughtException", (error) => console.error("[monitoring] uncaught exception", error));
