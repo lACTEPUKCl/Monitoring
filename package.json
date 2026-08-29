@@ -3,17 +3,18 @@
   "name": "squad44",
   "version": "1.0.0",
   "description": "",
+  "engines": { "node": ">=22.19.0" },
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.2",
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
     "https-proxy-agent": "^7.0.6",
-    "undici": "^5.29.0"
+    "squad-rcon": "^1.1.8",
+    "undici": "^8.10.0"
   }
 }
