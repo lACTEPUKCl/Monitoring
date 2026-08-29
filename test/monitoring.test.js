@@ -28,19 +28,6 @@ test("loadServerConfigs собирает прямую RCON-конфигурац�
   });
   assert.equal(configs[0].host, "10.89.0.2");
   assert.equal(configs[0].port, 21122);
-  assert.equal(configs[0].mode, "rcon");
-});
-
-test("явно оставляет внешний сервер на совместимом BattleMetrics-режиме", () => {
-  const [config] = loadServerConfigs({
-    SERVER_COUNT: "1",
-    MONITOR_MODE_1: "battlemetrics",
-    SERVER_ID_1: "123",
-    BATTLEMETRICS_TOKEN: "bm",
-    DISCORD_TOKEN_1: "discord",
-  });
-  assert.equal(config.mode, "battlemetrics");
-  assert.equal(config.serverId, "123");
 });
 
 test("RCON monitor получает ShowServerInfo без BattleMetrics", async () => {

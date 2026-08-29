@@ -4,7 +4,6 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import { ProxyAgent, setGlobalDispatcher } from "undici";
 import { loadServerConfigs } from "./src/config.js";
 import { createRconMonitor } from "./src/rconMonitor.js";
-import { createBattleMetricsMonitor } from "./src/battleMetricsMonitor.js";
 import { formatPresence } from "./src/status.js";
 
 dotenv.config();
@@ -21,9 +20,7 @@ if (process.env.DISCORD_PROXY_URL) {
 }
 
 const workers = configs.map((config, index) => {
-  const monitor = config.mode === "battlemetrics"
-    ? createBattleMetricsMonitor({ ...config, logger: console })
-    : createRconMonitor({ ...config, id: index + 1, logger: console });
+  const monitor = createRconMonitor({ ...config, id: index + 1, logger: console });
   const client = new Client({
     intents: [GatewayIntentBits.Guilds],
     ...(wsProxyAgent ? { ws: { agent: wsProxyAgent } } : {}),

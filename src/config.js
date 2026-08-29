@@ -18,16 +18,8 @@ export function loadServerConfigs(env = process.env) {
 
   return Array.from({ length: count }, (_, offset) => {
     const index = offset + 1;
-    const mode = String(env[`MONITOR_MODE_${index}`] || "rcon").trim().toLowerCase();
     const discordToken = String(env[`DISCORD_TOKEN_${index}`] || "").trim();
     if (!discordToken) throw new Error(`Не задан DISCORD_TOKEN_${index}`);
-    if (mode === "battlemetrics") {
-      const serverId = String(env[`SERVER_ID_${index}`] || "").trim();
-      const battleMetricsToken = String(env.BATTLEMETRICS_TOKEN || "").trim();
-      if (!serverId || !battleMetricsToken) throw new Error(`Неполная BattleMetrics-конфигурация сервера ${index}`);
-      return { mode, key: `bm-${serverId}`, serverId, battleMetricsToken, discordToken };
-    }
-    if (mode !== "rcon") throw new Error(`Неизвестный MONITOR_MODE_${index}: ${mode}`);
     const wantedKey = String(env[`RCON_KEY_${index}`] || "").trim();
     const fromFile = wantedKey
       ? fileConfigs.find((entry) => entry.key === wantedKey)
@@ -40,6 +32,6 @@ export function loadServerConfigs(env = process.env) {
     if (!host || !port || !password || !discordToken) {
       throw new Error(`Неполная конфигурация сервера ${index} (${key})`);
     }
-    return { mode, key, name, host, port, password, discordToken };
+    return { key, name, host, port, password, discordToken };
   });
 }
