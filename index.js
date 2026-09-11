@@ -4,6 +4,7 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import { ProxyAgent, setGlobalDispatcher } from "undici";
 import { loadServerConfigs } from "./src/config.js";
 import { createRconMonitor } from "./src/rconMonitor.js";
+import { createWardogsMonitor } from "./src/wardogsMonitor.js";
 import { formatPresence } from "./src/status.js";
 
 dotenv.config();
@@ -20,24 +21,30 @@ if (process.env.DISCORD_PROXY_URL) {
 }
 
 const workers = configs.map((config, index) => {
-  const monitor = createRconMonitor({ ...config, id: index + 1, logger: console });
+  const factory = config.game === "wardogs" ? createWardogsMonitor : createRconMonitor;
+  const monitor = factory({ ...config, id: index + 1, logger: console });
   const client = new Client({
     intents: [GatewayIntentBits.Guilds],
     ...(wsProxyAgent ? { ws: { agent: wsProxyAgent } } : {}),
   });
   let timer = null;
+  let updating = false;
 
   async function update() {
+    if (updating) return;
+    updating = true;
+    try {
     const info = await monitor.getInfo();
     const presence = formatPresence(info);
     client.user?.setPresence({ activities: [{ name: presence.text, type: 4 }], status: presence.status });
     console.log(`[monitoring] ${config.key}: ${presence.text}`);
+    } finally { updating = false; }
   }
 
   client.once("ready", () => {
     console.log(`[monitoring] ${config.key}: Discord ${client.user.tag}`);
-    void update();
-    timer = setInterval(update, intervalMs);
+    void update().catch(() => console.warn(`[monitoring] ${config.key}: update failed`));
+    timer = setInterval(() => void update().catch(() => console.warn(`[monitoring] ${config.key}: update failed`)), intervalMs);
   });
   client.on("error", (error) => console.error(`[monitoring] ${config.key}: Discord error`, error));
   monitor.start();

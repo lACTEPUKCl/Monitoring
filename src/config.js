@@ -29,6 +29,16 @@ export function loadServerConfigs(env = process.env) {
     const password = String(env[`RCON_PASSWORD_${index}`] || fromFile?.password || fromFile?.token || "").trim();
     const key = wantedKey || fromFile?.key || `server-${index}`;
     const name = String(env[`SERVER_NAME_${index}`] || fromFile?.name || key).trim();
+    const game = String(env[`SERVER_GAME_${index}`] || "squad").trim().toLowerCase();
+    if (game === "wardogs") {
+      const baseUrl = String(env[`RCON_URL_${index}`] || "").trim();
+      const url = new URL(baseUrl);
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || !password) {
+        throw new Error(`Неполная конфигурация Wardogs ${index}`);
+      }
+      return { game, key, name, baseUrl, password, discordToken };
+    }
+    if (game !== "squad") throw new Error(`Неизвестная игра сервера ${index}`);
     if (!host || !port || !password || !discordToken) {
       throw new Error(`Неполная конфигурация сервера ${index} (${key})`);
     }

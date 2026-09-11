@@ -1,3 +1,7 @@
 .git/
 .github/
 Dockerfile
+.env
+.env.*
+node_modules/
+test/
